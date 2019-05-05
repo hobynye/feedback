@@ -13,10 +13,8 @@ if os.path.exists(os.path.join(os.getcwd(), "config.py")):
 else:
     app.config.from_pyfile(os.path.join(os.getcwd(), "config.env.py"))
 
-from .routes import *
-
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
 from .models import *
-
+from .routes import *

@@ -1,10 +1,11 @@
 import React, { Component } from 'react';
-import Container from 'react-bootstrap/Container'
-import Card from 'react-bootstrap/Card'
-import Row from 'react-bootstrap/Row'
-import Form from 'react-bootstrap/Form'
-import Col from 'react-bootstrap/Col'
-import Navigation from './Navigation'
+import Container from 'react-bootstrap/Container';
+import Card from 'react-bootstrap/Card';
+import Row from 'react-bootstrap/Row';
+import Form from 'react-bootstrap/Form';
+import Col from 'react-bootstrap/Col';
+import Navigation from './Navigation';
+import UserDropdown from './UserDropdown';
 
 export default class Home extends Component {
     render() {
@@ -19,7 +20,7 @@ export default class Home extends Component {
                                 <Form>
                                     <Form.Group controlId="formVolunteerName">
                                         <Form.Label>Lets start with your name:</Form.Label>
-                                        <Form.Control type="text" placeholder="Hugh O'Brian" />
+                                        <UserDropdown/>
                                         <Form.Text className="text-muted">
                                             Being to type your name and select it from the dropdown.
                                         </Form.Text>
