@@ -9,8 +9,12 @@ html {
 body {
  margin: 0;
  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+ background-color: #f7f7f9;
 }
-h1, h2, h3, h4, h5, h6, p, ul {
- margin: 0;
- padding: 0;
+.navbar-brand {
+ color: #003057 !important;
+}
+
+a {
+ color: #003057;
 }
