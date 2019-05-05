@@ -3,7 +3,7 @@ import Navigation from './Navigation'
 import Container from 'react-bootstrap/Container'
 import Card from 'react-bootstrap/Card'
 import Col from 'react-bootstrap/Col'
-import Row from "./Home";
+import Row from 'react-bootstrap/Row'
 
 export default class ManageUsers extends Component {
     render() {
