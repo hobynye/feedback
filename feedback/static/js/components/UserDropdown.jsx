@@ -12,7 +12,10 @@ export default class UserDropdown extends Component {
         this.fetchOptions();
     }
 
-    handleChange = (e, {value}) => this.setState({value});
+    handleChange = (e, {value}) => {
+        this.setState({value});
+        this.props.handleInputChange({target: {value: value, name: "volunteer_id"}});
+    };
 
     fetchOptions = () => {
         this.setState({isFetching: true});
@@ -43,8 +46,6 @@ export default class UserDropdown extends Component {
 
     render() {
         const {options, isFetching, search, value} = this.state;
-        console.log("Render Triggered");
-        console.log(options);
         return (
             <Dropdown
                 fluid

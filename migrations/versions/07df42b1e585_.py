@@ -38,7 +38,7 @@ def upgrade():
     sa.Column('volunteer', sa.Integer(), nullable=False),
     sa.Column('title', sa.String(length=100), nullable=False),
     sa.Column('color', sa.Enum('Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Silver'), nullable=True),
-    sa.Column('letter', sa.String(length=1), nullable=True),
+    sa.Column('letter', sa.String(length=3), nullable=True),
     sa.ForeignKeyConstraint(['volunteer'], ['volunteer.id'], ),
     sa.PrimaryKeyConstraint('year', 'volunteer')
     )
