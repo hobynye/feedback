@@ -157,19 +157,30 @@ def mass_import_users():
             user_add = Volunteer(name=user["name"], email=user["email"], phone=user["phone"])
             db.session.add(user_add)
             users_added.append(user)
-    db.session.commit()
+        db.session.commit()
 
     assigned_roles = {}
+    already_processed = []
     for user in user_list:
         volunteer = Volunteer.query.filter(Volunteer.name == user["name"]).first()
-
-        if not Role.query.filter(Role.year == datetime.now().year, Role.volunteer == volunteer.id):
+        role = Role.query.filter(Role.year == datetime.now().year, Role.volunteer == volunteer.id).first()
+        if not role and not already_processed:
+            # New volunteer that needs to be added.
             role_add = Role(
                 year=datetime.now().year, volunteer=volunteer.id, title=user["role"],
                 color=user["color"], letter=user["letter"])
             db.session.add(role_add)
-            db.session.commit()
-            assigned_roles[user["name"]] = {"role": user["role"], "color": user["color"], "letter": user["letter"]}
-            print({"role": user["role"], "color": user["color"], "letter": user["letter"]})
+        elif not already_processed and (user["role"], user["color"], user["letter"]) != (role.title, role.color, role.letter):
+            # Changing the role of an existing volunteer
+            role.title = user["role"]
+            role.color = user["color"]
+            role.letter = user["letter"]
+        else:
+            # We have already processed this, someone can't have two titles.
+            continue
+            
+        assigned_roles[user["name"]] = {"role": user["role"], "color": user["color"], "letter": user["letter"]}
+        already_processed.append(volunteer.id)
 
+    db.session.commit()
     return jsonify({"results": {"new_users": users_added, "new_roles": assigned_roles}})
