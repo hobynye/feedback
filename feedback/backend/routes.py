@@ -1,8 +1,11 @@
 from . import app, db
 from .models import Feedback, Volunteer, Role, COLORS
-from flask import render_template, request, jsonify
+from flask import render_template, request, jsonify, redirect
+from flask_login import login_user, logout_user, current_user, login_required
 from sqlalchemy.exc import IntegrityError, InvalidRequestError
+from bcrypt import hashpw, gensalt
 from datetime import datetime
+import urllib.parse
 import io
 import re
 import csv
@@ -14,6 +17,7 @@ def index():
 
 
 @app.route('/api/feedback', methods={"GET"})
+@login_required
 def list_feedback():
     quantity = int(request.args.get('qty', 10))
     offset = int(request.args.get('offset', 0))
@@ -24,27 +28,45 @@ def list_feedback():
                 "error": "Invalid Quantity! (Valid Range [1,100])"
             }
         ), 400
-    results = Feedback.query\
-        .join(Volunteer,Feedback.submitted_by == Volunteer.id)\
+    '''
+    results = Feedback.query.labels("") \
+        .join(Volunteer, Feedback.submitted_by == Volunteer.id) \
+        .join(Role, Feedback.submitted_by == Role.volunteer, Role.year == datetime.now().year) \
         .with_entities(
-            Volunteer.name,
-            Feedback.id,
-            Feedback.submitted_by,
-            Feedback.datetime,
-            Feedback.color,
-            Feedback.body)\
+        Volunteer.name,
+        Feedback.id,
+        Feedback.submitted_by,
+        Feedback.datetime,
+        Feedback.color,
+        Feedback.body,
+        Role.title,
+        Role.color,
+        Role.letter) \
         .limit(quantity).offset(offset).all()
+    '''
+    query = (db.session.query(Feedback, Volunteer, Role)
+             .join(Volunteer, Feedback.submitted_by == Volunteer.id)
+             .join(Role, Role.volunteer == Volunteer.id)
+             .filter(Role.year == datetime.now().year)
+             .order_by(Feedback.datetime.desc())
+             ).limit(quantity).offset(offset).all()
+
+    feedback = []
+    for feedback_set in query:
+        feedback.append({
+            "author": feedback_set[1].name,
+            "role": feedback_set[2].title,
+            "color": feedback_set[2].color,
+            "letter": feedback_set[2].letter,
+            "severity": feedback_set[0].color,
+            "body": feedback_set[0].body,
+            "submitted": feedback_set[0].datetime.timestamp()
+        })
+
     return jsonify(
         {
-            "results": [
-                {
-                    "id": row.id,
-                    "author": row.name,
-                    "submitted": row.datetime.timestamp(),
-                    "color": row.color,
-                    "body": row.body
-                } for row in results],
-            "quantity": len(results),
+            "results": feedback,
+            "quantity": len(feedback),
             "offset": offset
         }
     )
@@ -82,12 +104,17 @@ def create_feedback():
 
 @app.route('/api/users', methods={"GET"})
 def list_volunteers():
-    volunteers = Role.query \
-        .filter(Role.year == datetime.now().year)\
-        .join(Volunteer, Role.volunteer == Volunteer.id)\
-        .with_entities(
-            Volunteer.id,
-            Volunteer.name)
+    admin_only = bool(request.args.get('admin', False) == "true")
+    if admin_only:
+        volunteers = Role.query \
+            .filter(Role.year == datetime.now().year, Volunteer.admin == True) \
+            .join(Volunteer, Role.volunteer == Volunteer.id) \
+            .with_entities(Volunteer.id, Volunteer.name)
+    else:
+        volunteers = Role.query \
+            .filter(Role.year == datetime.now().year) \
+            .join(Volunteer, Role.volunteer == Volunteer.id) \
+            .with_entities(Volunteer.id, Volunteer.name)
     return jsonify(
         {
             "volunteers": [{
@@ -99,6 +126,7 @@ def list_volunteers():
 
 
 @app.route('/api/users/import', methods={"POST"})
+@login_required
 def mass_import_users():
     if 'file' not in request.files:
         return jsonify({"success": False, "error": "No file"}), 400
@@ -170,7 +198,8 @@ def mass_import_users():
                 year=datetime.now().year, volunteer=volunteer.id, title=user["role"],
                 color=user["color"], letter=user["letter"])
             db.session.add(role_add)
-        elif not already_processed and (user["role"], user["color"], user["letter"]) != (role.title, role.color, role.letter):
+        elif not already_processed and (user["role"], user["color"], user["letter"]) != (
+                role.title, role.color, role.letter):
             # Changing the role of an existing volunteer
             role.title = user["role"]
             role.color = user["color"]
@@ -178,9 +207,62 @@ def mass_import_users():
         else:
             # We have already processed this, someone can't have two titles.
             continue
-            
+
         assigned_roles[user["name"]] = {"role": user["role"], "color": user["color"], "letter": user["letter"]}
         already_processed.append(volunteer.id)
 
     db.session.commit()
     return jsonify({"results": {"new_users": users_added, "new_roles": assigned_roles}})
+
+
+@app.route("/api/login", methods={"POST"})
+def login():
+    user_info = request.get_json(force=True)
+    req_params = ["volunteer_id", "password", "next"]
+    for param in req_params:
+        if param not in user_info:
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "No value '{}' value provided.".format(param)
+                }
+            ), 400
+    volunteer = Volunteer.query.filter(Volunteer.id == user_info["volunteer_id"]).first()
+    if volunteer.password:
+        enc_entered = user_info["password"].encode("utf-8")
+        enc_stored = volunteer.password.encode("utf-8")
+        # hashpw will return the same hash using the stored salt
+        if hashpw(enc_entered, enc_stored) == enc_stored:
+            login_user(volunteer, remember=True)
+            return jsonify({
+                "success": True,
+                "next": urllib.parse.unquote(user_info["next"])
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": "Password did not match!"
+            }), 400
+    else:
+        return jsonify({
+            "success": False,
+            "error": "User does not have a password set."
+        }), 400
+
+
+@app.route('/api/logout')
+def logout():
+    logout_user()
+    return redirect("/")
+
+
+@app.route("/api/user/self", methods={"GET"})
+@login_required
+def get_self():
+    return jsonify({
+        "success": True,
+        "current_user": {
+            "name": current_user.name,
+            "id": current_user.id
+        }
+    })

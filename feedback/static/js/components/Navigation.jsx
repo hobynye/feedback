@@ -6,6 +6,14 @@ import Nav from 'react-bootstrap/Nav';
 
 export default class Navigation extends Component {
     render() {
+        let user;
+        if (this.props.currentUser) {
+            user = (
+                <NavDropdown title={this.props.currentUser} id="basic-nav-dropdown">
+                    <NavDropdown.Item href="/api/logout">Logout</NavDropdown.Item>
+                </NavDropdown>
+            )
+        }
         return (
             <div>
                 <Navbar expand="md" bg="primary" variant="dark" sticky="top">
@@ -23,10 +31,11 @@ export default class Navigation extends Component {
                         <Navbar.Toggle aria-controls="responsive-navbar-nav"/>
                         <Navbar.Collapse id="responsive-navbar-nav" className="justify-content-end">
                             <Nav>
-                            <NavDropdown title="Operations" id="basic-nav-dropdown">
-                                <NavDropdown.Item href="#results">View Results</NavDropdown.Item>
-                                <NavDropdown.Item href="#users">Manage Users</NavDropdown.Item>
-                            </NavDropdown>
+                                <NavDropdown title="Operations" id="basic-nav-dropdown">
+                                    <NavDropdown.Item href="#results">View Results</NavDropdown.Item>
+                                    <NavDropdown.Item href="#users">Manage Users</NavDropdown.Item>
+                                </NavDropdown>
+                                {user}
                             </Nav>
                         </Navbar.Collapse>
                     </Container>

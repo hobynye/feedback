@@ -9,6 +9,29 @@ class Volunteer(db.Model):
     name = db.Column(db.String(128), nullable=False)
     email = db.Column(db.String(128), nullable=False)
     phone = db.Column(db.String(10), nullable=True)
+    admin = db.Column(db.Boolean, nullable=False, default=False)
+    password = db.Column(db.String(150), nullable=True)
+
+    def __init__(self, name, email, phone, password):
+        self.name = name
+        self.password = password
+        self.email = email
+        self.phone = phone
+
+    def is_authenticated(self):
+        return True
+
+    def is_active(self):
+        return True
+
+    def is_anonymous(self):
+        return False
+
+    def get_id(self):
+        return self.id
+
+    def __repr__(self):
+        return '<User %r>' % self.name
 
 
 class Role(db.Model):

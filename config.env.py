@@ -12,4 +12,6 @@ SQLALCHEMY_DATABASE_URI = os.environ.get(
     "DATABASE_URI", "mysql+pymysql://hoby-feedback:password@mysql.csh.rit.edu/hoby-feedback"
 )
 SQLALCHEMY_TRACK_MODIFICATIONS = False
+SQLALCHEMY_POOL_SIZE = 100
+SQLALCHEMY_POOL_RECYCLE = 280
 

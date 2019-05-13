@@ -3,6 +3,7 @@ import { HashRouter, Route, hashHistory } from 'react-router-dom';
 import Home from './components/Home';
 import Results from './components/Results'
 import ManageUsers from "./components/ManageUsers";
+import Login from './components/Login'
 
 export default (
     <HashRouter history={hashHistory}>
@@ -11,6 +12,7 @@ export default (
       <Route path='/home' component={Home} />
       <Route path='/results' component={Results} />
       <Route path='/users' component={ManageUsers} />
+      <Route path='/login' component={Login}/>
      </div>
     </HashRouter>
 );

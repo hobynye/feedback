@@ -18,11 +18,14 @@ export default class UserDropdown extends Component {
     };
 
     fetchOptions = () => {
+        let adminOnlyQuery = "";
         this.setState({isFetching: true});
-
+        if (this.props.adminOnly === true) {
+            adminOnlyQuery = "?admin=true"
+        }
         setTimeout(() => {
             let formattedList = [];
-            fetch("/api/users")
+            fetch("/api/users" + adminOnlyQuery)
                 .then(response => response.json())
                 .then((jsonData) => {
                     const volunteers = jsonData["volunteers"];

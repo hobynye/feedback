@@ -62,8 +62,8 @@ export default class FeedbackForm extends Component {
                         error: response.error
                     })
                 }
-            });
-        this.setState({modalShow: true});
+            }).then(() => this.setState({modalShow: true}));
+
         event.preventDefault();
     };
 
@@ -94,7 +94,7 @@ export default class FeedbackForm extends Component {
                                     <Card.Body>
                                         <Form.Group controlId="formVolunteerName" style={{"marginBottom": 0}}>
                                             <Form.Label>Lets start with your name!</Form.Label>
-                                            <UserDropdown handleInputChange={this.handleInputChange}/>
+                                            <UserDropdown handleInputChange={this.handleInputChange} adminOnly={false}/>
                                             <Form.Text className="text-muted">
                                                 Start by typing your name and selecting it from the dropdown.
                                             </Form.Text>
