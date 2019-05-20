@@ -5,6 +5,8 @@ from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 
+from twilio.rest import Client
+
 app = Flask(__name__,
             static_folder='../public',
             template_folder='../static')
@@ -20,6 +22,8 @@ migrate = Migrate(app, db)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+twilio = Client(app.config["TWILIO_SID"], app.config["TWILIO_TOKEN"])
 
 from .models import *
 from .routes import *

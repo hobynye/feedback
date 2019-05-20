@@ -1,4 +1,4 @@
-from . import app, db
+from . import app, db, twilio
 from .models import Feedback, Volunteer, Role, COLORS
 from flask import render_template, request, jsonify, redirect
 from flask_login import login_user, logout_user, current_user, login_required
@@ -92,6 +92,28 @@ def create_feedback():
     try:
         db.session.add(feedback)
         db.session.commit()
+        if parameters["color"] == "Red":
+            name = "Anonymous"
+            volunteer = Volunteer.query.filter(Volunteer.id == parameters["author"]).first()
+            if volunteer:
+                name = volunteer.name
+
+            to_alert = Volunteer.query.filter(
+                Volunteer.admin == True,
+                Volunteer.alert == True
+            ).all()
+
+            for admin in to_alert:
+                if admin.phone:
+                    twilio.messages \
+                        .create(
+                            body="[Red Alert] From: {} - {}".format(
+                                name,
+                                parameters["body"]
+                            ),
+                            from_=app.config["TWILIO_NUMBER"],
+                            to="+1{}".format(admin.phone)
+                        )
         return jsonify({"success": True})
     except IntegrityError:
         return jsonify(
