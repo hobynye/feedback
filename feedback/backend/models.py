@@ -47,5 +47,7 @@ class Feedback(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     submitted_by = db.Column(db.Integer, db.ForeignKey("volunteer.id"), nullable=False)
     color = db.Column(db.Enum(*STOPLIGHT), nullable=False)
+    response = db.Column(db.Boolean, nullable=False, default=False)
     datetime = db.Column(db.DateTime, default=db.func.current_timestamp())
     body = db.Column(db.Text, nullable=False)
+    handled = db.Column(db.Boolean, nullable=False, default=False)

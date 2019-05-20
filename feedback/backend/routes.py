@@ -75,7 +75,7 @@ def list_feedback():
 @app.route('/api/feedback', methods={"POST"})
 def create_feedback():
     parameters = request.get_json(force=True)
-    req_params = ["author", "color", "body"]
+    req_params = ["author", "color", "body", "response"]
     for param in req_params:
         if param not in parameters:
             return jsonify(
@@ -87,16 +87,19 @@ def create_feedback():
     feedback = Feedback(
         submitted_by=parameters["author"],
         color=parameters["color"],
+        response=bool(parameters["response"] in ["ASAP", "Yes"]),
         body=parameters["body"]
     )
     try:
         db.session.add(feedback)
         db.session.commit()
-        if parameters["color"] == "Red":
-            name = "Anonymous"
+        if parameters["color"] == "Red" or parameters["response"] == "ASAP":
+            name, phone = "Anonymous", ""
             volunteer = Volunteer.query.filter(Volunteer.id == parameters["author"]).first()
             if volunteer:
                 name = volunteer.name
+                if volunteer.phone:
+                    phone = " ({})".format(volunteer.phone)
 
             to_alert = Volunteer.query.filter(
                 Volunteer.admin == True,
@@ -107,8 +110,10 @@ def create_feedback():
                 if admin.phone:
                     twilio.messages \
                         .create(
-                            body="[Red Alert] From: {} - {}".format(
+                            body="[{} Alert] From: {}{} - {}".format(
+                                parameters["color"],
                                 name,
+                                phone,
                                 parameters["body"]
                             ),
                             from_=app.config["TWILIO_NUMBER"],
