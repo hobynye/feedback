@@ -1,6 +1,6 @@
 from . import app, db, twilio
 from .models import Feedback, Volunteer, Role, COLORS
-from flask import render_template, request, jsonify, redirect
+from flask import request, jsonify, redirect
 from flask_login import login_user, logout_user, current_user, login_required
 from sqlalchemy.exc import IntegrityError, InvalidRequestError
 from bcrypt import hashpw, gensalt
@@ -9,11 +9,6 @@ import urllib.parse
 import io
 import re
 import csv
-
-
-@app.route('/')
-def index():
-    return render_template("index.html")
 
 
 @app.route('/api/feedback', methods={"GET"})

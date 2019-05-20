@@ -7,9 +7,7 @@ from flask_login import LoginManager
 
 from twilio.rest import Client
 
-app = Flask(__name__,
-            static_folder='../public',
-            template_folder='../static')
+app = Flask(__name__)
 
 if os.path.exists(os.path.join(os.getcwd(), "config.py")):
     app.config.from_pyfile(os.path.join(os.getcwd(), "config.py"))
