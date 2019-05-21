@@ -147,6 +147,87 @@ def list_volunteers():
     )
 
 
+@app.route("/api/admin/users", methods=["GET"])
+@login_required
+def get_all_users():
+    year = request.args.get('year', False) or datetime.now().year
+    volunteers = Role.query \
+        .filter(Role.year == year) \
+        .join(Volunteer, Role.volunteer == Volunteer.id) \
+        .with_entities(
+            Volunteer.id,
+            Volunteer.name,
+            Volunteer.admin,
+            Volunteer.email,
+            Volunteer.phone,
+            Role.color,
+            Role.letter,
+            Role.title
+        )
+    all_users = {user.id: {
+        "name": user.name,
+        "admin": user.admin,
+        "email": user.email,
+        "phone": user.phone,
+        "color": user.color,
+        "letter": user.letter,
+        "title": user.title
+    } for user in volunteers}
+
+    return jsonify({
+        "users": all_users,
+        "year": year,
+        "count": len(all_users),
+        "success": True
+    })
+
+
+@app.route("/api/admin/user/<uid>", methods=["GET"])
+@login_required
+def get_user(uid=False):
+    year = request.args.get('year', False) or datetime.now().year
+    if not uid:
+        return jsonify({
+            "success": False,
+            "error": "No 'id' provided."
+        })
+
+    volunteer = Role.query \
+        .filter(Role.year == year, Volunteer.id == uid) \
+        .join(Volunteer, Role.volunteer == Volunteer.id) \
+        .with_entities(
+            Volunteer.id,
+            Volunteer.name,
+            Volunteer.admin,
+            Volunteer.email,
+            Volunteer.phone,
+            Role.color,
+            Role.letter,
+            Role.title
+        ).first()
+    if volunteer:
+        user = {
+            "id": volunteer.id,
+            "name": volunteer.name,
+            "admin": volunteer.admin,
+            "email": volunteer.email,
+            "phone": volunteer.phone,
+            "color": volunteer.color,
+            "letter": volunteer.letter,
+            "title": volunteer.title
+        }
+
+        return jsonify({
+            "user": user,
+            "year": year,
+            "success": True
+        })
+    return jsonify({
+        "success": False,
+        "error": "No user found!"
+    })
+
+
 @app.route('/api/users/import', methods={"POST"})
 @login_required
 def mass_import_users():
