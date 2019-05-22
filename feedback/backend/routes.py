@@ -164,7 +164,8 @@ def get_all_users():
             Role.letter,
             Role.title
         )
-    all_users = {user.id: {
+    all_users = [{
+        "id": user.id,
         "name": user.name,
         "admin": user.admin,
         "email": user.email,
@@ -172,7 +173,7 @@ def get_all_users():
         "color": user.color,
         "letter": user.letter,
         "title": user.title
-    } for user in volunteers}
+    } for user in volunteers]
 
     return jsonify({
         "users": all_users,
