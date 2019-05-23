@@ -1,11 +1,14 @@
 from . import app, db, twilio
 from .models import Feedback, Volunteer, Role, COLORS
+from .utils import send_mail
 from flask import request, jsonify, redirect
 from flask_login import login_user, logout_user, current_user, login_required
-from sqlalchemy.exc import IntegrityError, InvalidRequestError
+from sqlalchemy.exc import IntegrityError
 from bcrypt import hashpw, gensalt
 from datetime import datetime
 import urllib.parse
+import random
+import string
 import io
 import re
 import csv
@@ -23,22 +26,6 @@ def list_feedback():
                 "error": "Invalid Quantity! (Valid Range [1,100])"
             }
         ), 400
-    '''
-    results = Feedback.query.labels("") \
-        .join(Volunteer, Feedback.submitted_by == Volunteer.id) \
-        .join(Role, Feedback.submitted_by == Role.volunteer, Role.year == datetime.now().year) \
-        .with_entities(
-        Volunteer.name,
-        Feedback.id,
-        Feedback.submitted_by,
-        Feedback.datetime,
-        Feedback.color,
-        Feedback.body,
-        Role.title,
-        Role.color,
-        Role.letter) \
-        .limit(quantity).offset(offset).all()
-    '''
     query = (db.session.query(Feedback, Volunteer, Role)
              .join(Volunteer, Feedback.submitted_by == Volunteer.id)
              .join(Role, Role.volunteer == Volunteer.id)
@@ -105,15 +92,15 @@ def create_feedback():
                 if admin.phone:
                     twilio.messages \
                         .create(
-                            body="[{} Alert] From: {}{} - {}".format(
-                                parameters["color"],
-                                name,
-                                phone,
-                                parameters["body"]
-                            ),
-                            from_=app.config["TWILIO_NUMBER"],
-                            to="+1{}".format(admin.phone)
-                        )
+                        body="[{} Alert] From: {}{} - {}".format(
+                            parameters["color"],
+                            name,
+                            phone,
+                            parameters["body"]
+                        ),
+                        from_=app.config["TWILIO_NUMBER"],
+                        to="+1{}".format(admin.phone)
+                    )
         return jsonify({"success": True})
     except IntegrityError:
         return jsonify(
@@ -155,19 +142,21 @@ def get_all_users():
         .filter(Role.year == year) \
         .join(Volunteer, Role.volunteer == Volunteer.id) \
         .with_entities(
-            Volunteer.id,
-            Volunteer.name,
-            Volunteer.admin,
-            Volunteer.email,
-            Volunteer.phone,
-            Role.color,
-            Role.letter,
-            Role.title
-        )
+        Volunteer.id,
+        Volunteer.name,
+        Volunteer.admin,
+        Volunteer.email,
+        Volunteer.phone,
+        Volunteer.alert,
+        Role.color,
+        Role.letter,
+        Role.title
+    )
     all_users = [{
         "id": user.id,
         "name": user.name,
         "admin": user.admin,
+        "alert": user.alert,
         "email": user.email,
         "phone": user.phone,
         "color": user.color,
@@ -197,15 +186,15 @@ def get_user(uid=False):
         .filter(Role.year == year, Volunteer.id == uid) \
         .join(Volunteer, Role.volunteer == Volunteer.id) \
         .with_entities(
-            Volunteer.id,
-            Volunteer.name,
-            Volunteer.admin,
-            Volunteer.email,
-            Volunteer.phone,
-            Role.color,
-            Role.letter,
-            Role.title
-        ).first()
+        Volunteer.id,
+        Volunteer.name,
+        Volunteer.admin,
+        Volunteer.email,
+        Volunteer.phone,
+        Role.color,
+        Role.letter,
+        Role.title
+    ).first()
     if volunteer:
         user = {
             "id": volunteer.id,
@@ -229,7 +218,54 @@ def get_user(uid=False):
     })
 
 
-@app.route('/api/users/import', methods={"POST"})
+@app.route('/api/admin/users/create', methods={"POST"})
+@login_required
+def create_user():
+    parameters = request.get_json(force=True)
+    required = ["name", "email", "title"]
+    for field in required:
+        if field not in parameters:
+            return jsonify({
+                "success": False,
+                "error": "Missing {} field.".format(field)
+            }), 400
+    exists = Volunteer.query.filter(Volunteer.name == parameters["name"]).first()
+    if exists:
+        return jsonify({
+            "success": False,
+            "error": "User already exists with that name! {}".format(exists)
+        })
+    role_fields = ["title", "color", "letter"]
+    phone = None
+    if "phone" in parameters:
+        regex = re.compile(r'\+?[2-9]?\d?\d?-?\(?\d{3}\)?[ -]?\d{3}-?\d{4}')
+        match = regex.search(parameters["phone"])
+        if match:
+            canonical_phone = re.sub(r'\D', '', match.group(0))
+            phone = canonical_phone[-10:]
+    new_user = Volunteer(
+        parameters["name"],
+        parameters["email"],
+        phone
+    )
+    db.session.add(new_user)
+    db.session.commit()
+    volunteer = Volunteer.query.filter(Volunteer.name == parameters["name"]).first()
+    new_role = Role(
+        year=datetime.now().year,
+        volunteer=volunteer.id,
+        title=parameters["title"]
+    )
+    for field in role_fields:
+        setattr(new_role, field, parameters.get(field, None))
+    db.session.add(new_role)
+    db.session.commit()
+    return jsonify({
+        "success": True
+    })
+
+
+@app.route('/api/admin/users/import', methods={"POST"})
 @login_required
 def mass_import_users():
     if 'file' not in request.files:
@@ -370,3 +406,55 @@ def get_self():
             "id": current_user.id
         }
     })
+
+
+@app.route("/api/admin/user/<uid>", methods=["DELETE"])
+@login_required
+def delete_user(uid=False):
+    if not uid:
+        return jsonify({
+            "success": False,
+            "error": "No 'id' provided."
+        }), 400
+    Role.query.filter(Role.volunteer == uid).delete()
+    Feedback.query.filter(Feedback.submitted_by == uid).delete()
+    Volunteer.query.filter(Volunteer.id == uid).delete()
+    db.session.commit()
+    return jsonify({"success": True})
+
+
+def generate_passwd(length=10):
+    letters = string.ascii_letters
+    return ''.join(random.choice(letters) for i in range(length))
+
+
+@app.route("/api/admin/user/<uid>", methods=["PUT"])
+@login_required
+def update_user(uid=False):
+    if not uid:
+        return jsonify({
+            "success": False,
+            "error": "No 'id' provided."
+        }), 400
+    parameters = request.get_json(force=True)
+    user = Volunteer.query.filter(Volunteer.id == uid).one()
+    acceptable = ["name", "email", "phone", "alert", "admin", "color", "letter", "title"]
+    for field in parameters:
+        if field in acceptable:
+            if field == "phone":
+                regex = re.compile(r'\+?[2-9]?\d?\d?-?\(?\d{3}\)?[ -]?\d{3}-?\d{4}')
+                match = regex.search(parameters["phone"])
+                if match:
+                    canonical_phone = re.sub(r'\D', '', match.group(0))
+                    setattr(user, "phone", canonical_phone[-10:])
+            else:
+                setattr(user, field, parameters[field])
+    if not parameters["admin"]:
+        user.alert = False
+    elif not user.password:
+        password = generate_passwd()
+        user.password = hashpw(password.encode("utf-8"), gensalt())
+        send_mail(user.email, password)
+
+    db.session.commit()
+    return jsonify({"success": True})

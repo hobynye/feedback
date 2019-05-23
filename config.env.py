@@ -12,6 +12,9 @@ TWILIO_SID = os.environ.get("TWILIO_SID", "account_id")
 TWILIO_TOKEN = os.environ.get("TWILIO_TOKEN", "[secret]")
 TWILIO_NUMBER = os.environ.get("TWILIO_PHONE", "+12345678910")
 
+EMAIL_USER = os.environ.get("EMAIL_USER", "feedback@hobyny.org")
+EMAIL_PASS = os.environ.get("EMAIL_PASS", "[secret]")
+
 SQLALCHEMY_DATABASE_URI = os.environ.get(
     "DATABASE_URI", "mysql+pymysql://hoby-feedback:password@mysql.csh.rit.edu/hoby-feedback"
 )

@@ -13,9 +13,8 @@ class Volunteer(db.Model):
     password = db.Column(db.String(150), nullable=True)
     alert = db.Column(db.Boolean, nullable=False, default=False)
 
-    def __init__(self, name, email, phone, password):
+    def __init__(self, name, email, phone):
         self.name = name
-        self.password = password
         self.email = email
         self.phone = phone
 
