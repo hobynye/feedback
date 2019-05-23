@@ -1,0 +1,58 @@
+html {
+ box-sizing: border-box;
+ -ms-text-size-adjust: 100%;
+ -webkit-text-size-adjust: 100%;
+}
+*, *:before, *:after {
+ box-sizing: inherit;
+}
+body {
+ margin: 0;
+ font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+ background-color: #f7f7f9;
+}
+
+.form-check {
+    padding-left: 0;
+}
+
+.btn.active, .btn:active {
+    background-image: none;
+    outline: 0;
+    opacity: 1;
+}
+
+[type='radio'] {
+display: none;
+}
+
+.color-button {
+    opacity: 0.5;
+}
+
+.color-button:hover,
+.color-button:active {
+    opacity: 1;
+}
+
+.btn-warning,
+.btn-warning:hover,
+.btn-warning label:active,
+.btn-warning:not(:disabled):not(.disabled).active
+{
+    color: #fff;
+}
+
+@supports (-webkit-overflow-scrolling: touch) {
+  select,
+  textarea,
+  input {
+    font-size: 16px !important;
+  }
+}
+
+#title {
+    display: inline-block;
+    margin-top: 5px;
+    margin-left: 10px;
+}
