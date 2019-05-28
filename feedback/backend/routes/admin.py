@@ -1,140 +1,20 @@
-from . import app, db, twilio
-from .models import Feedback, Volunteer, Role, COLORS
-from .utils import send_mail
-from flask import request, jsonify, redirect
-from flask_login import login_user, logout_user, current_user, login_required
-from sqlalchemy.exc import IntegrityError
-from bcrypt import hashpw, gensalt
-from datetime import datetime
-import urllib.parse
-import random
-import string
-import io
 import re
+import io
 import csv
+from datetime import datetime
+
+from bcrypt import hashpw, gensalt
+from flask import Blueprint, request, jsonify
+from flask_login import login_required
+
+from feedback.backend.models import Volunteer, Role, Feedback, COLORS
+from feedback.backend.utils import send_mail, generate_passwd
+from feedback.backend import db
+
+admin_bp = Blueprint('admin_bp', __name__)
 
 
-@app.route('/api/feedback', methods={"GET"})
-@login_required
-def list_feedback():
-    quantity = int(request.args.get('qty', 10))
-    offset = int(request.args.get('offset', 0))
-    if 1 < quantity > 100:
-        return jsonify(
-            {
-                "success": False,
-                "error": "Invalid Quantity! (Valid Range [1,100])"
-            }
-        ), 400
-    query = (db.session.query(Feedback, Volunteer, Role)
-             .join(Volunteer, Feedback.submitted_by == Volunteer.id)
-             .join(Role, Role.volunteer == Volunteer.id)
-             .filter(Role.year == datetime.now().year)
-             .order_by(Feedback.datetime.desc())
-             ).limit(quantity).offset(offset).all()
-
-    feedback = []
-    for feedback_set in query:
-        feedback.append({
-            "author": feedback_set[1].name,
-            "role": feedback_set[2].title,
-            "color": feedback_set[2].color,
-            "letter": feedback_set[2].letter,
-            "severity": feedback_set[0].color,
-            "body": feedback_set[0].body,
-            "submitted": feedback_set[0].datetime.timestamp()
-        })
-
-    return jsonify(
-        {
-            "results": feedback,
-            "quantity": len(feedback),
-            "offset": offset
-        }
-    )
-
-
-@app.route('/api/feedback', methods={"POST"})
-def create_feedback():
-    parameters = request.get_json(force=True)
-    req_params = ["author", "color", "body", "response"]
-    for param in req_params:
-        if param not in parameters:
-            return jsonify(
-                {
-                    "success": False,
-                    "error": "No value '{}' value provided.".format(param)
-                }
-            ), 400
-    feedback = Feedback(
-        submitted_by=parameters["author"],
-        color=parameters["color"],
-        response=bool(parameters["response"] in ["ASAP", "Yes"]),
-        body=parameters["body"]
-    )
-    try:
-        db.session.add(feedback)
-        db.session.commit()
-        if parameters["color"] == "Red" or parameters["response"] == "ASAP":
-            name, phone = "Anonymous", ""
-            volunteer = Volunteer.query.filter(Volunteer.id == parameters["author"]).first()
-            if volunteer:
-                name = volunteer.name
-                if volunteer.phone:
-                    phone = " ({})".format(volunteer.phone)
-
-            to_alert = Volunteer.query.filter(
-                Volunteer.admin == True,
-                Volunteer.alert == True
-            ).all()
-
-            for admin in to_alert:
-                if admin.phone:
-                    twilio.messages \
-                        .create(
-                        body="[{} Alert] From: {}{} - {}".format(
-                            parameters["color"],
-                            name,
-                            phone,
-                            parameters["body"]
-                        ),
-                        from_=app.config["TWILIO_NUMBER"],
-                        to="+1{}".format(admin.phone)
-                    )
-        return jsonify({"success": True})
-    except IntegrityError:
-        return jsonify(
-            {
-                "success": False,
-                "error": "User does not exist!"
-            }
-        ), 400
-
-
-@app.route('/api/users', methods={"GET"})
-def list_volunteers():
-    admin_only = bool(request.args.get('admin', False) == "true")
-    if admin_only:
-        volunteers = Role.query \
-            .filter(Role.year == datetime.now().year, Volunteer.admin == True) \
-            .join(Volunteer, Role.volunteer == Volunteer.id) \
-            .with_entities(Volunteer.id, Volunteer.name)
-    else:
-        volunteers = Role.query \
-            .filter(Role.year == datetime.now().year) \
-            .join(Volunteer, Role.volunteer == Volunteer.id) \
-            .with_entities(Volunteer.id, Volunteer.name)
-    return jsonify(
-        {
-            "volunteers": [{
-                "id": row.id,
-                "name": row.name
-            } for row in volunteers]
-        }
-    )
-
-
-@app.route("/api/admin/users", methods=["GET"])
+@admin_bp.route("/api/admin/users", methods=["GET"])
 @login_required
 def get_all_users():
     year = request.args.get('year', False) or datetime.now().year
@@ -172,7 +52,7 @@ def get_all_users():
     })
 
 
-@app.route("/api/admin/user/<uid>", methods=["GET"])
+@admin_bp.route("/api/admin/user/<uid>", methods=["GET"])
 @login_required
 def get_user(uid=False):
     year = request.args.get('year', False) or datetime.now().year
@@ -218,7 +98,7 @@ def get_user(uid=False):
     })
 
 
-@app.route('/api/admin/users/create', methods={"POST"})
+@admin_bp.route('/api/admin/users/create', methods={"POST"})
 @login_required
 def create_user():
     parameters = request.get_json(force=True)
@@ -265,7 +145,7 @@ def create_user():
     })
 
 
-@app.route('/api/admin/users/import', methods={"POST"})
+@admin_bp.route('/api/admin/users/import', methods={"POST"})
 @login_required
 def mass_import_users():
     if 'file' not in request.files:
@@ -332,13 +212,13 @@ def mass_import_users():
     for user in user_list:
         volunteer = Volunteer.query.filter(Volunteer.name == user["name"]).first()
         role = Role.query.filter(Role.year == datetime.now().year, Role.volunteer == volunteer.id).first()
-        if not role and not already_processed:
+        if not role and volunteer.id not in already_processed:
             # New volunteer that needs to be added.
             role_add = Role(
                 year=datetime.now().year, volunteer=volunteer.id, title=user["role"],
                 color=user["color"], letter=user["letter"])
             db.session.add(role_add)
-        elif not already_processed and (user["role"], user["color"], user["letter"]) != (
+        elif volunteer.id not in already_processed and (user["role"], user["color"], user["letter"]) != (
                 role.title, role.color, role.letter):
             # Changing the role of an existing volunteer
             role.title = user["role"]
@@ -355,60 +235,7 @@ def mass_import_users():
     return jsonify({"results": {"new_users": users_added, "new_roles": assigned_roles}})
 
 
-@app.route("/api/login", methods={"POST"})
-def login():
-    user_info = request.get_json(force=True)
-    req_params = ["volunteer_id", "password", "next"]
-    for param in req_params:
-        if param not in user_info:
-            return jsonify(
-                {
-                    "success": False,
-                    "error": "No value '{}' value provided.".format(param)
-                }
-            ), 400
-    volunteer = Volunteer.query.filter(Volunteer.id == user_info["volunteer_id"]).first()
-    if volunteer.password:
-        enc_entered = user_info["password"].encode("utf-8")
-        enc_stored = volunteer.password.encode("utf-8")
-        # hashpw will return the same hash using the stored salt
-        if hashpw(enc_entered, enc_stored) == enc_stored:
-            login_user(volunteer, remember=True)
-            return jsonify({
-                "success": True,
-                "next": urllib.parse.unquote(user_info["next"])
-            })
-        else:
-            return jsonify({
-                "success": False,
-                "error": "Password did not match!"
-            }), 400
-    else:
-        return jsonify({
-            "success": False,
-            "error": "User does not have a password set."
-        }), 400
-
-
-@app.route('/api/logout')
-def logout():
-    logout_user()
-    return redirect("/")
-
-
-@app.route("/api/user/self", methods={"GET"})
-@login_required
-def get_self():
-    return jsonify({
-        "success": True,
-        "current_user": {
-            "name": current_user.name,
-            "id": current_user.id
-        }
-    })
-
-
-@app.route("/api/admin/user/<uid>", methods=["DELETE"])
+@admin_bp.route("/api/admin/user/<uid>", methods=["DELETE"])
 @login_required
 def delete_user(uid=False):
     if not uid:
@@ -423,12 +250,7 @@ def delete_user(uid=False):
     return jsonify({"success": True})
 
 
-def generate_passwd(length=10):
-    letters = string.ascii_letters
-    return ''.join(random.choice(letters) for i in range(length))
-
-
-@app.route("/api/admin/user/<uid>", methods=["PUT"])
+@admin_bp.route("/api/admin/user/<uid>", methods=["PUT"])
 @login_required
 def update_user(uid=False):
     if not uid:
@@ -438,6 +260,9 @@ def update_user(uid=False):
         }), 400
     parameters = request.get_json(force=True)
     user = Volunteer.query.filter(Volunteer.id == uid).one()
+    # Check if we need to change the user's password.
+    if "password" in parameters:
+        user.password = hashpw(parameters["password"].encode("utf-8"), gensalt())
     acceptable = ["name", "email", "phone", "alert", "admin", "color", "letter", "title"]
     for field in parameters:
         if field in acceptable:
@@ -449,7 +274,7 @@ def update_user(uid=False):
                     setattr(user, "phone", canonical_phone[-10:])
             else:
                 setattr(user, field, parameters[field])
-    if not parameters["admin"]:
+    if not parameters.get("admin", False):
         user.alert = False
     elif not user.password:
         password = generate_passwd()
@@ -458,3 +283,4 @@ def update_user(uid=False):
 
     db.session.commit()
     return jsonify({"success": True})
+

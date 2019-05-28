@@ -1,9 +1,16 @@
 from . import app
 
 import smtplib
+import string
+import random
 
 from email.mime.text import MIMEText
 from email.utils import formatdate
+
+
+def generate_passwd(length=10):
+    letters = string.ascii_letters
+    return ''.join(random.choice(letters) for i in range(length))
 
 
 def send_mail(address, passwd):
