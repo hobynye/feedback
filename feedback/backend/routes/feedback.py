@@ -32,12 +32,14 @@ def list_feedback():
     feedback = []
     for feedback_set in query:
         feedback.append({
+            "id": feedback_set[0].id,
             "author": feedback_set[1].name,
             "role": feedback_set[2].title,
             "color": feedback_set[2].color,
             "letter": feedback_set[2].letter,
             "severity": feedback_set[0].color,
             "body": feedback_set[0].body,
+            "handled": feedback_set[0].handled,
             "submitted": feedback_set[0].datetime.timestamp()
         })
 
@@ -105,3 +107,19 @@ def create_feedback():
                 "error": "User does not exist!"
             }
         ), 400
+
+
+@feedback_bp.route('/api/feedback/<fid>', methods=["PUT"])
+def hide_feedback(fid):
+    feedback = Feedback.query.filter(Feedback.id == fid).first()
+    if not feedback:
+        return jsonify({
+            "success": False,
+            "error": "Feedback ID not found!"
+        })
+
+    feedback.handled = True
+    db.session.commit()
+    return jsonify({
+        "success": True,
+    })
