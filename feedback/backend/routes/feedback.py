@@ -3,6 +3,7 @@ from datetime import datetime
 from flask_login import login_required
 from flask import Blueprint, request, jsonify
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import or_
 
 from feedback.backend.models import Feedback, Volunteer, Role
 from feedback.backend import db, twilio, app
@@ -25,7 +26,7 @@ def list_feedback():
     query = (db.session.query(Feedback, Volunteer, Role)
              .join(Volunteer, Feedback.submitted_by == Volunteer.id)
              .join(Role, Role.volunteer == Volunteer.id)
-             .filter(Role.year == datetime.now().year)
+             .filter(or_(Role.year == 1970, Role.year == datetime.now().year))
              .order_by(Feedback.datetime.desc())
              ).limit(quantity).offset(offset).all()
 

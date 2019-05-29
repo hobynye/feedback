@@ -23,12 +23,11 @@ def list_volunteers():
             .filter(Role.year == datetime.now().year) \
             .join(Volunteer, Role.volunteer == Volunteer.id) \
             .with_entities(Volunteer.id, Volunteer.name)
+    results = [{"id": row.id, "name": row.name} for row in volunteers]
+    results = [{"id": 0, "name": "Anonymous"}] + results
     return jsonify(
         {
-            "volunteers": [{
-                "id": row.id,
-                "name": row.name
-            } for row in volunteers]
+            "volunteers": results
         }
     )
 
