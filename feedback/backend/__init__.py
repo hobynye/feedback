@@ -24,7 +24,10 @@ login_manager.login_view = 'login'
 twilio = Client(app.config["TWILIO_SID"], app.config["TWILIO_TOKEN"])
 
 from .models import *
-from .routes import *
+from .routes import feedback_bp, admin_bp, user_bp
+app.register_blueprint(feedback_bp)
+app.register_blueprint(admin_bp)
+app.register_blueprint(user_bp)
 
 
 @login_manager.user_loader
