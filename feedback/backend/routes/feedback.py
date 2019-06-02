@@ -1,7 +1,9 @@
-from datetime import datetime
+from datetime import datetime, date
+import csv
+import io
 
 from flask_login import login_required
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, make_response
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_
 
@@ -14,21 +16,28 @@ feedback_bp = Blueprint('feedback_bp', __name__)
 @feedback_bp.route('/api/feedback', methods={"GET"})
 @login_required
 def list_feedback():
-    quantity = int(request.args.get('qty', 10))
-    offset = int(request.args.get('offset', 0))
-    if 1 < quantity > 100:
+    year = int(request.args.get('year', datetime.now().year))
+    download = bool(request.args.get('download', False))
+
+    if year < 2019:
         return jsonify(
             {
                 "success": False,
-                "error": "Invalid Quantity! (Valid Range [1,100])"
+                "error": "Invalid Year!"
             }
         ), 400
     query = (db.session.query(Feedback, Volunteer, Role)
              .join(Volunteer, Feedback.submitted_by == Volunteer.id)
              .join(Role, Role.volunteer == Volunteer.id)
-             .filter(or_(Role.year == 1970, Role.year == datetime.now().year))
+             .filter(
+                or_(Role.year == 1970, Role.year == datetime.now().year),
+                Feedback.datetime.between(
+                    date(year, 1, 1),
+                    date(year, 12, 31)
+                )
+                )
              .order_by(Feedback.datetime.desc())
-             ).limit(quantity).offset(offset).all()
+             ).all()
 
     feedback = []
     for feedback_set in query:
@@ -43,12 +52,36 @@ def list_feedback():
             "handled": feedback_set[0].handled,
             "submitted": feedback_set[0].datetime.timestamp()
         })
+    if download:
+        si = io.StringIO()
+        cw = csv.writer(si)
+        cw.writerows([[
+            "Submitted",
+            "Severity",
+            "Body",
+            "Author",
+            "Role",
+            "Group"
+        ]])
+        cw.writerows(
+            [
+                datetime.fromtimestamp(f["submitted"]),
+                f["severity"],
+                f["body"],
+                f["author"],
+                f["role"],
+                "{} {}".format(f["color"] or "", f["letter"] or ""),
+            ] for f in feedback)
+        output = make_response(si.getvalue())
+        output.headers["Content-Disposition"] = "attachment; filename=feedback.csv"
+        output.headers["Content-type"] = "text/csv"
+        return output
 
     return jsonify(
         {
             "results": feedback,
             "quantity": len(feedback),
-            "offset": offset
+            "year": year
         }
     )
 
