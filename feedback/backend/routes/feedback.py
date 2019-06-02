@@ -74,7 +74,7 @@ def create_feedback():
     try:
         db.session.add(feedback)
         db.session.commit()
-        if parameters["color"] == "Red" or parameters["response"] == "ASAP":
+        if parameters["color"].lower() == "red" or parameters["response"].lower() == "asap":
             name, phone = "Anonymous", ""
             volunteer = Volunteer.query.filter(Volunteer.id == parameters["author"]).first()
             if volunteer:
@@ -92,7 +92,7 @@ def create_feedback():
                     twilio.messages \
                         .create(
                         body="[{} Alert] From: {}{} - {}".format(
-                            parameters["color"],
+                            parameters["color"].capitalize(),
                             name,
                             phone,
                             parameters["body"]
